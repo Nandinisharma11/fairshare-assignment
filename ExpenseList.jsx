@@ -59,7 +59,11 @@ export default function ExpenseList({
   onUpdateAt,
 }) {
   const memberMap = Object.fromEntries(members.map((m) => [m.id, m]));
-  const sorted = [...expenses].sort((a, b) => dateValue(a.date) - dateValue(b.date));
+  
+  // FIX 1 & 2: Sort descending (newest first) and retain originalIndex for deletion/editing
+  const sorted = expenses
+    .map((expense, originalIndex) => ({ expense, originalIndex }))
+    .sort((a, b) => dateValue(b.expense.date) - dateValue(a.expense.date));
 
   return (
     <section className="card">
@@ -68,16 +72,80 @@ export default function ExpenseList({
       {sorted.length === 0 ? (
         <p className="empty">No expenses match these filters.</p>
       ) : (
-        sorted.map((expense, index) => (
+        sorted.map(({ expense, originalIndex }) => (
           <ExpenseRow
-            key={index}
+            key={expense.id || originalIndex}
             expense={expense}
             memberMap={memberMap}
-            onDelete={() => onDeleteAt(index)}
-            onSaveAmount={(amount) => onUpdateAt(index, { amount })}
+            onDelete={() => onDeleteAt(originalIndex)}
+            onSaveAmount={(amount) => onUpdateAt(originalIndex, { amount })}
           />
         ))
       )}
     </section>
   );
+}
+
+const KEY = "fairshare-v1";
+
+function hydrate(data) {
+  return {
+    groupName: data.groupName,
+    members: data.members.map((m) => ({ ...m })),
+    expenses: data.expenses.map((e) => ({
+      ...e,
+      date: new Date(e.date),
+    })),
+  };
+}
+
+export function loadState(seed) {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) {
+      const initial = hydrate(seed);
+      localStorage.setItem(KEY, JSON.stringify(initial));
+      return initial;
+    }
+    // FIX 3: Re-hydrate dates from local storage string back to Date objects
+    return hydrate(JSON.parse(raw));
+  } catch {
+    return hydrate(seed);
+  }
+}
+
+export function persistState(state) {
+  localStorage.setItem(KEY, JSON.stringify(state));
+}
+
+export function nextExpenseId() {
+  return `e-${Date.now()}`;
+}
+
+export function nextMemberId(members) {
+  const max = members.reduce((m, x) => (x.id > m ? x.id : m), 0);
+  return max + 1;
+}
+
+export function reducer(state, action) {
+  switch (action.type) {
+    case "ADD_EXPENSE": {
+      return { ...state, expenses: [...state.expenses, action.expense] };
+    }
+    case "DELETE_EXPENSE": {
+      const next = state.expenses.slice();
+      next.splice(action.index, 1);
+      return { ...state, expenses: next };
+    }
+    case "UPDATE_EXPENSE": {
+      const next = state.expenses.slice();
+      next[action.index] = { ...next[action.index], ...action.patch };
+      return { ...state, expenses: next };
+    }
+    case "ADD_MEMBER": {
+      return { ...state, members: [...state.members, action.member] };
+    }
+    default:
+      return state;
+  }
 }

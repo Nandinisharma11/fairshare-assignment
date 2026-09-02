@@ -6,10 +6,10 @@ export function computeBalances(members, expenses) {
 
   for (const exp of expenses) {
     const shares = sharesForExpense(exp);
-    // Payer gets full credit for the amount paid
+    // Payer receives full credit for the amount paid out
     bal[exp.paidBy] = (bal[exp.paidBy] || 0) + Number(exp.amount);
 
-    // Subtract individual shares consumed
+    // Subtract individual shares consumed by each member in the split
     for (const [id, share] of Object.entries(shares)) {
       const key = Number(id);
       bal[key] = (bal[key] || 0) - share;
@@ -68,7 +68,7 @@ export function suggestSettlements(balances, members) {
       c.amount -= d.amount;
       i += 1;
     } else {
-      
+      // FIX: Push transfer when debtor and creditor amounts match exactly
       transfers.push({
         from: d.id,
         to: c.id,
@@ -125,7 +125,6 @@ export function splitByPercent(amount, percents) {
 
   entries.forEach(([id, pct], index) => {
     if (index === entries.length - 1) {
-     
       shares[id] = (totalCents - allocatedCents) / 100;
     } else {
       const shareCents = Math.round((totalCents * Number(pct)) / 100);
